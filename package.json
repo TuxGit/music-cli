@@ -1,0 +1,23 @@
+{
+  "name": "music-cli",
+  "version": "1.0.0",
+  "description": "Систематизация музыки (консольное приложение)",
+  "main": "main.js",
+  "scripts": {
+    "test": "node main.js --input ./test/input --output ./test/output --debug",
+    "start": "node main.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TuxGit/music-cli.git"
+  },
+  "keywords": [
+    "music",
+    "nodejs"
+  ],
+  "author": "Nikitin",
+  "bugs": {
+    "url": "https://github.com/TuxGit/music-cli/issues"
+  },
+  "homepage": "https://github.com/TuxGit/music-cli#readme"
+}
