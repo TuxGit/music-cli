@@ -54,46 +54,72 @@ const removeDir = (dir) => {
     }
 };
 
-// основная функция чтения каталога и перенос файлов
-const readDir = (base, level) => {
-    try {
-        const files = fs.readdirSync(base);
-        files.forEach(item => {
+// функция чтения каталога
+// let filesLength = 0;
+// var error = null;
+const transformDir = (base, done) => {
+    // try {
+    fs.readdir(base, (err, files) => {
+        if (err) {
+            return done(err);
+        }
+        
+        let filesLength = files.length;
+        if (filesLength < 1) {
+            return done(null, true);
+        }
+
+        for (let item of files) {
             let currentPath = path.join(base, item);
-            if (fs.statSync(currentPath).isDirectory()) {  // Stats
-                readDir(currentPath, level + 1);
-            } else {
-                // todo - проверять расширение: .mp3, ...?
-                let newFileDir = path.join(outputDir, item[0].toUpperCase());
-                if (!fs.existsSync(newFileDir)) {
-                    fs.mkdirSync(newFileDir);
+            fs.stat(currentPath, (err, stats) => {
+                if (err) {
+                    return done(err);
                 }
-                // fs.linkSync(path.join(currentPath), path.join(newFileDir, item));
-                if (!DEBUG) {
-                    fs.renameSync(path.join(currentPath), path.join(newFileDir, item));
+
+                if (stats.isDirectory()) {
+                    transformDir(currentPath, (err) => {
+                        if (err) {
+                            done(err);
+                        } else if (--filesLength < 1) {
+                            done(null, true);
+                        }
+                    });
                 } else {
-                    fs.copyFileSync(path.join(currentPath), path.join(newFileDir, item));
+                    let newFileDir = path.join(outputDir, item[0].toUpperCase());
+                    if (!fs.existsSync(newFileDir)) {
+                        fs.mkdirSync(newFileDir);
+                    }
+                    fs.copyFile(path.join(currentPath), path.join(newFileDir, item), (err) => {
+                        if (err) {
+                            // throw err;
+                            done(err);
+                            // return;  // так из цикла не выйти
+                        } else if (--filesLength < 1) {
+                            done(null, true);
+                        }
+                    });                    
                 }
-            }
-        });        
-        return 0;
-    } catch (e) {
-        // throw e;
-        return e.message ? e.message : 1;
-    }
+            });            
+        }
+    });
+    // } catch (e) {
+    //     return e.message;
+    // }
 };
 
 // запуск функции
-const res = readDir(inputDir, 0);
-if (res === 0) {
-    console.log('Файлы успешно разобраны!');
-    // удаляем входную директорию
-    if (!DEBUG) {
-        console.log('Чистим входную директорию...');
-        // fs.rmdirSync(inputDir); // если только пустая директория :(
-        removeDir(inputDir);
-        console.log('Очистка завершена!');
+transformDir(inputDir, (err, success) => {
+    if (err) {
+        console.log('Произошла ошибка в ходе работы программы: ', err.message);
+    } else if (success) {
+        console.log('Файлы успешно разобраны!');
+        // удаляем входную директорию
+        if (!DEBUG) {
+            console.log('Чистим входную директорию...');
+            removeDir(inputDir);
+            console.log('Очистка завершена!');
+        }
+    } else {
+        console.log('Непредвиденное поведение программы!');
     }
-} else {
-    console.log('Произошла ошибка: ', res);
-}
+});
