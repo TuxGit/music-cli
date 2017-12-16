@@ -1,5 +1,10 @@
 const path = require('path');
 const fs = require('fs');
+const util = require('util');
+const readdir = util.promisify(fs.readdir);
+const stat = util.promisify(fs.stat);
+const rename = util.promisify(fs.rename);
+const copyFile = util.promisify(fs.copyFile);
 
 const baseDir = path.resolve(__dirname);
 let inputDir = undefined;
@@ -55,45 +60,43 @@ const removeDir = (dir) => {
 };
 
 // основная функция чтения каталога и перенос файлов
-const readDir = (base, level) => {
+const transformDir = async (base) => {    
     try {
-        const files = fs.readdirSync(base);
-        files.forEach(item => {
+        let files = await readdir(base);
+        for (let item of files) {
             let currentPath = path.join(base, item);
-            if (fs.statSync(currentPath).isDirectory()) {  // Stats
-                readDir(currentPath, level + 1);
+            let stats = await stat(currentPath);
+            if (stats.isDirectory()) {
+                await transformDir(currentPath);
             } else {
-                // todo - проверять расширение: .mp3, ...?
                 let newFileDir = path.join(outputDir, item[0].toUpperCase());
                 if (!fs.existsSync(newFileDir)) {
                     fs.mkdirSync(newFileDir);
                 }
-                // fs.linkSync(path.join(currentPath), path.join(newFileDir, item));
                 if (!DEBUG) {
-                    fs.renameSync(path.join(currentPath), path.join(newFileDir, item));
-                } else {
-                    fs.copyFileSync(path.join(currentPath), path.join(newFileDir, item));
+                    await rename(path.join(currentPath), path.join(newFileDir, item));
+                } else {                    
+                    await copyFile(path.join(currentPath), path.join(newFileDir, item));
                 }
             }
-        });        
-        return 0;
+        }
     } catch (e) {
-        // throw e;
-        return e.message ? e.message : 1;
+        // console.log('error', e.message);
+        throw e;
     }
 };
 
 // запуск функции
-const res = readDir(inputDir, 0);
-if (res === 0) {
-    console.log('Файлы успешно разобраны!');
-    // удаляем входную директорию
-    if (!DEBUG) {
-        console.log('Чистим входную директорию...');
-        // fs.rmdirSync(inputDir); // если только пустая директория :(
-        removeDir(inputDir);
-        console.log('Очистка завершена!');
-    }
-} else {
-    console.log('Произошла ошибка: ', res);
-}
+transformDir(inputDir)
+    .then(() => {
+        console.log('Файлы успешно разобраны!');
+        // удаляем входную директорию
+        if (!DEBUG) {
+            console.log('Чистим входную директорию...');
+            removeDir(inputDir);
+            console.log('Очистка завершена!');
+        }
+    })
+    .catch((err) => {
+        console.log('Произошла ошибка: ', err.message);
+    });

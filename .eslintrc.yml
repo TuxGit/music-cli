@@ -18,3 +18,5 @@ rules:
   semi:
     - error
     - always
+parserOptions:
+  ecmaVersion: 2017
