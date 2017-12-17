@@ -40,25 +40,53 @@ if (!fs.existsSync(outputDir)) {
 
 
 // функция удаления директории
-const removeDir = (dir) => {
+const removeDir = (dir, done) => {
     if (fs.existsSync(dir)) {
-        fs.readdirSync(dir).forEach(file => {
-            let currentPath = path.join(dir, file);
-            if (fs.statSync(currentPath).isDirectory()) {
-                removeDir(currentPath);
-            } else {
-                fs.unlinkSync(currentPath);  // remove file
+        fs.readdir(dir, (err, files) => {
+            if (err) {
+                return done(err);
+            }
+
+            let count = files.length;
+            if (count < 1) {
+                return done(null, true);
+            }
+
+            for (let item of files) {
+                let currentPath = path.join(dir, item);
+                fs.stat(currentPath, (err, stats) => {
+                    if (err) {
+                        return done(err);
+                    }
+    
+                    if (stats.isDirectory()) {
+                        removeDir(currentPath, (err) => {
+                            if (err) {
+                                done(err);
+                            }
+                            fs.rmdirSync(currentPath);
+                            if (--count < 1) {
+                                done(null, true);
+                            }
+                        });
+                    } else {
+                        fs.unlink(currentPath, (err) => {
+                            if (err) {
+                                done(err);
+                            }
+                            if (--count < 1) {
+                                done(null, true);
+                            }
+                        });
+                    }
+                });
             }
         });
-        fs.rmdirSync(dir);
     }
 };
 
-// функция чтения каталога
-// let filesLength = 0;
-// var error = null;
+// основная функция чтения и разбора каталога
 const transformDir = (base, done) => {
-    // try {
     fs.readdir(base, (err, files) => {
         if (err) {
             return done(err);
@@ -89,22 +117,27 @@ const transformDir = (base, done) => {
                     if (!fs.existsSync(newFileDir)) {
                         fs.mkdirSync(newFileDir);
                     }
-                    fs.copyFile(path.join(currentPath), path.join(newFileDir, item), (err) => {
-                        if (err) {
-                            // throw err;
-                            done(err);
-                            // return;  // так из цикла не выйти
-                        } else if (--filesLength < 1) {
-                            done(null, true);
-                        }
-                    });                    
+                    if (!DEBUG) {
+                        fs.rename(currentPath, path.join(newFileDir, item), (err) => {
+                            if (err) {
+                                done(err);
+                            } else if (--filesLength < 1) {
+                                done(null, true);
+                            }
+                        });
+                    } else {
+                        fs.copyFile(currentPath, path.join(newFileDir, item), (err) => {
+                            if (err) {
+                                done(err);
+                            } else if (--filesLength < 1) {
+                                done(null, true);
+                            }
+                        });
+                    }
                 }
-            });            
+            });
         }
     });
-    // } catch (e) {
-    //     return e.message;
-    // }
 };
 
 // запуск функции
@@ -116,8 +149,14 @@ transformDir(inputDir, (err, success) => {
         // удаляем входную директорию
         if (!DEBUG) {
             console.log('Чистим входную директорию...');
-            removeDir(inputDir);
-            console.log('Очистка завершена!');
+            removeDir(inputDir, (err, success) => {
+                if (err) {
+                    console.log('Произошла ошибка при удалении директории: ', err.message);
+                } else if (success) {
+                    fs.rmdirSync(inputDir);
+                    console.log('Очистка завершена!');
+                }
+            });
         }
     } else {
         console.log('Непредвиденное поведение программы!');
